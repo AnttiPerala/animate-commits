@@ -1,6 +1,6 @@
 {
   "name": "animate-commits",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "Turn a Git repository's history into an editor-ready PNG sequence.",
   "type": "module",
   "private": true,

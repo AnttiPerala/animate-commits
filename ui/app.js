@@ -3,7 +3,7 @@ const fields = ['repo','output','update','appType','install','start','url','nati
 fields.push('cloneTimeout');
 const numeric = new Set(['maxFrames','width','height','every','delay','fps','timeout','commandTimeout','cloneTimeout','port']);
 const nullable = new Set(['install','start','nativeWindowTitle','from','selector','electronExecutable','electronWindowUrl','nativeReadyFile']);
-let loaded = {}, lastState = {}, imageKey = '', logText = '', listKey = '', submitting = false, openingOutput = false, openingPreview = false;
+let loaded = {}, lastState = {}, imageKey = '', logText = '', listKey = '', submitting = false, openingOutput = false, openingPreview = false, reopening = false;
 let detected = [], detectionKey = '', detecting = false, detectionId = 0;
 const setupKey = () => JSON.stringify([$('repo').value.trim(), $('directory').value || '.']);
 function clearDetection() { detectionId++; detected=[]; detectionKey=''; $('suggestions').hidden=true; $('detectStatus').textContent='Choose Detect setup to inspect this repository.'; }
@@ -48,13 +48,19 @@ function showRecent(items) {
   const placeholder = new Option(items.length ? 'Choose a recent repository…' : 'No recent repositories yet', '');
   $('recentRepos').replaceChildren(placeholder, ...items.map(repo => new Option(repo, repo)));
 }
-$('recentRepos').onchange = async () => {
-  const repo = $('recentRepos').value;
-  if(!repo) return;
-  $('repo').value = repo;
-  clearDetection(); detect();
-  try { showRecent(await api('recent', {repo})); } catch(e) { error(e.message); }
-};
+async function reopenRepository(repo) {
+  if(!repo)return;
+  reopening=true; busy(true); clearDetection(); $('repo').value=repo; $('output').value='';
+  $('recentStatus').textContent='Looking for the saved sequence…'; outputButton();
+  let restored=false;
+  try {
+    const result=await api('reopen',{repo});
+    fill(result.config); showRecent(result.repositories); $('recentStatus').textContent=result.message; error(''); restored=true;
+  } catch(e) { $('recentStatus').textContent=e.message; error(e.message); }
+  finally { reopening=false; busy(['running','cancelling'].includes(lastState.status)||submitting); outputButton(); }
+  if(restored)detect();
+}
+$('recentRepos').onchange = () => reopenRepository($('recentRepos').value);
 function mode() {
   $('capture').textContent = $('update').checked ? 'Update capture' : 'Start capture';
   $('outputHint').textContent = $('update').checked ? 'Select the previous capture folder containing manifest.json. Existing images are kept; only newer commits are captured.' : 'Choose a new or empty folder, preferably outside your repository.';
@@ -86,11 +92,12 @@ function config() {
   return c;
 }
 function busy(value) {
+  value=value||reopening;
   $('settings').disabled = value;
   ['load','save','inspect','capture','detect'].forEach(id => $(id).disabled = value || detecting);
 }
 async function start(kind) {
-  if(submitting || detecting || !$('captureForm').reportValidity()) return;
+  if(submitting || detecting || reopening || !$('captureForm').reportValidity()) return;
   submitting = true; error(''); busy(true);
   try { const result = await api('start',{kind,config:config()}); showRecent(result.repositories); await refresh(); }
   catch(e) { error(e.message); busy(false); }
@@ -102,7 +109,7 @@ $('appType').onchange = mode;
 $('update').onchange = mode;
 for(const [button,input] of [['browseRepo','repo'],['browseOutput','output']]) $(button).onclick = async () => {
   $(button).disabled = true;
-  try { const result = await api('browse',{target:input}); if(result.path) { $(input).value = result.path; if(input==='repo') { clearDetection(); detect(); } } showRecent(result.repositories); } catch(e) { error(e.message); }
+  try { const result = await api('browse',{target:input}); if(result.path) { if(input==='repo') await reopenRepository(result.path); else $(input).value=result.path; } if(input!=='repo')showRecent(result.repositories); } catch(e) { error(e.message); }
   finally { $(button).disabled = false; }
 };
 $('load').onclick = async () => { try { const result = await api('load',{}); if(result.config) { clearDetection(); fill(result.config); showRecent(result.repositories); error(''); } } catch(e) { error(e.message); } };
@@ -111,7 +118,7 @@ $('stop').onclick = async () => { try { await api('cancel',{}); await refresh();
 function outputButton() {
   $('openOutput').disabled = openingOutput || !$('output').value.trim();
   $('openOutput').textContent = openingOutput ? 'Opening folder…' : 'Open output folder';
-  $('preview').disabled = openingPreview || ['running','cancelling'].includes(lastState.status) || !$('output').value.trim();
+  $('preview').disabled = reopening || openingPreview || ['running','cancelling'].includes(lastState.status) || !$('output').value.trim();
   $('preview').textContent = openingPreview ? 'Opening sequence…' : 'Play sequence ↗';
 }
 $('output').addEventListener('input', outputButton);
@@ -124,7 +131,8 @@ $('openOutput').onclick = async () => {
 $('preview').onclick = async () => {
   openingPreview=true; outputButton(); error('');
   try {
-    const result=await api('preview',{output:$('output').value});
+    const result=await api('preview',{output:$('output').value,repo:$('repo').value});
+    showRecent(result.repositories);
     $('previewFrame').src=result.url; $('previewDialog').showModal();
   } catch(e) { error(e.message); }
   finally { openingPreview=false; outputButton(); }

@@ -26,8 +26,8 @@ export function recentRepositories(file = recentFile) {
       const data = JSON.parse(await readFile(file, 'utf8'));
       if (!Array.isArray(data)) return [];
       const seen = new Set();
-      return data.filter(value => typeof value === 'string' && value.trim()).map(normalize).filter(value => {
-        const id = key(value); if (seen.has(id)) return false; seen.add(id); return true;
+      return data.map(value => typeof value === 'string' ? {repo:value} : value).filter(value => value && typeof value.repo === 'string' && value.repo.trim()).map(value => ({repo:normalize(value.repo), ...(typeof value.output === 'string' && value.output ? {output:resolve(value.output)} : {})})).filter(value => {
+        const id = key(value.repo); if (seen.has(id)) return false; seen.add(id); return true;
       }).slice(0, 20);
     } catch (error) {
       if (error.code === 'ENOENT' || error instanceof SyntaxError || error instanceof TypeError) return [];
@@ -35,18 +35,22 @@ export function recentRepositories(file = recentFile) {
     }
   }
   return {
-    list: async () => { await pending; return read(); },
-    add(repo) {
+    list: async () => { await pending; return (await read()).map(item=>item.repo); },
+    get: async repo => { await pending; return (await read()).find(item=>key(item.repo)===key(normalize(repo))) || null; },
+    add(repo, {output} = {}) {
       const operation = pending.then(async () => {
         const value = normalize(repo);
-        const items = [value, ...(await read()).filter(item => key(item) !== key(value))].slice(0, 20);
+        const previous = await read();
+        const saved = previous.find(item=>key(item.repo)===key(value));
+        const entry = { ...saved, repo:value, ...(output ? {output:resolve(output)} : {}) };
+        const items = [entry, ...previous.filter(item => key(item.repo) !== key(value))].slice(0, 20);
         await mkdir(dirname(file), { recursive: true });
         const temporary = `${file}.${randomUUID()}.tmp`;
         try {
           await writeFile(temporary, JSON.stringify(items, null, 2) + '\n', { flag: 'wx' });
           await rename(temporary, file);
         } finally { await rm(temporary, { force: true }); }
-        return items;
+        return items.map(item=>item.repo);
       });
       pending = operation.catch(() => {});
       return operation;

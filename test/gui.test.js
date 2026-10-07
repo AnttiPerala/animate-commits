@@ -12,7 +12,7 @@ import { version } from '../src/version.js';
 test('graphical interface inspects, captures, previews and reports errors', { timeout: 120000 }, async () => {
   const temp = await mkdtemp(join(tmpdir(), 'animate-gui-test-'));
   const opened = [];
-  const app = await createGuiServer({ historyFile: join(temp, 'preferences', 'recent.json'), folderOpener: async folder => {
+  const app = await createGuiServer({ capturesRoot:join(temp,'captures'), historyFile: join(temp, 'preferences', 'recent.json'), folderOpener: async folder => {
     if (folder === 'missing-output') throw new Error('Output folder does not exist');
     opened.push(folder); return folder;
   } });
@@ -62,6 +62,10 @@ test('graphical interface inspects, captures, previews and reports errors', { ti
     await page.locator('#repo').fill('');
     await page.locator('#recentRepos').selectOption(temp);
     assert.equal(await page.locator('#repo').inputValue(), temp);
+    await page.locator('#recentStatus').filter({hasText:'No saved capture folder'}).waitFor();
+    await page.locator('#output').fill(join(temp,'output'));
+    await page.locator('#width').fill('640'); await page.locator('#height').fill('360');
+    await page.locator('summary').click(); await page.locator('#port').fill(String(port)); await page.locator('summary').click();
     await page.locator('#capture').click();
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Capture complete', { }, { timeout: 60000 });
     assert.equal(await page.locator('#frameCount').textContent(), '2 FRAMES · 0 FAILED');
@@ -77,6 +81,22 @@ test('graphical interface inspects, captures, previews and reports errors', { ti
     await preview.locator('#next').click();
     assert.equal(await preview.locator('#message').textContent(), 'Second UI');
     await page.locator('#closePreview').click();
+    const restarted=await createGuiServer({capturesRoot:join(temp,'captures'),historyFile:join(temp,'preferences','recent.json')});
+    const reopenedPage=await browser.newPage();
+    try {
+      await reopenedPage.goto(restarted.url);
+      await reopenedPage.locator('#recentRepos option').filter({hasText:temp}).waitFor({state:'attached'});
+      await reopenedPage.locator('#recentRepos').selectOption(temp);
+      await reopenedPage.locator('#recentStatus').filter({hasText:'Restored 2 saved frames'}).waitFor();
+      assert.equal(await reopenedPage.locator('#output').inputValue(),join(temp,'output'));
+      assert.equal(await reopenedPage.locator('#width').inputValue(),'640');
+      assert.equal(await reopenedPage.locator('#update').isChecked(),true);
+      await reopenedPage.locator('#frameCount').filter({hasText:'2 FRAMES'}).waitFor();
+      await reopenedPage.locator('#latest').evaluate(img=>img.decode());
+      await reopenedPage.locator('#preview').click();
+      await reopenedPage.frameLocator('#previewFrame').locator('#count').filter({hasText:'2 / 2 frames'}).waitFor();
+      assert.equal(await reopenedPage.locator('#status').textContent(),'Ready to capture');
+    } finally { await reopenedPage.close(); await restarted.close(); }
     await page.screenshot({ path: resolve('captures/gui/completed.png'), fullPage: true });
     await page.locator('#capture').click();
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Capture failed', { }, { timeout: 15000 });

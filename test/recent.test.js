@@ -32,5 +32,13 @@ test('recent repositories persist, cap at twenty, and move reopened items to the
     assert.deepEqual(await recentRepositories(file).list(), []);
     await restarted.add(join(temp, 'restored'));
     assert.deepEqual(await recentRepositories(file).list(), [join(temp, 'restored')]);
+    await restarted.add(join(temp,'restored'),{output:join(temp,'saved sequence')});
+    await restarted.add(join(temp,'another'));
+    await restarted.add(join(temp,'restored'));
+    assert.equal((await recentRepositories(file).get(join(temp,'restored'))).output,join(temp,'saved sequence'));
+    await writeFile(file,JSON.stringify([join(temp,'legacy')]));
+    assert.deepEqual(await recentRepositories(file).list(),[join(temp,'legacy')]);
+    await restarted.add(join(temp,'legacy'),{output:join(temp,'legacy sequence')});
+    assert.equal((await recentRepositories(file).get(join(temp,'legacy'))).output,join(temp,'legacy sequence'));
   } finally { await rm(temp, { recursive: true, force: true }); }
 });

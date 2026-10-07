@@ -13,6 +13,7 @@ import { openFolder } from './open-folder.js';
 import { version } from './version.js';
 import { detectSetup } from './detect.js';
 import { previewHtml } from './preview.js';
+import { savedCapture, findSavedCapture } from './saved-capture.js';
 
 const assets = fileURLToPath(new URL('../ui/', import.meta.url));
 const dialogScript = fileURLToPath(new URL('../helpers/gui-dialog.ps1', import.meta.url));
@@ -28,12 +29,13 @@ async function pick(kind, signal) {
   return (await run('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', dialogScript, '-Kind', kind], { timeout: 3600000, signal })).trim();
 }
 
-export async function createGuiServer({ historyFile, folderOpener = openFolder } = {}) {
+export async function createGuiServer({ historyFile, folderOpener = openFolder, capturesRoot = join(homedir(),'Videos','Animate Commits') } = {}) {
   const recent = recentRepositories(historyFile);
   const token = randomBytes(24).toString('hex');
   const lifetime = new AbortController();
   const base = `/${token}/`;
-  const initial = { ...defaults, repo: '', output: join(homedir(), 'Videos', 'Animate Commits', new Date().toISOString().replace(/[:.]/g, '-')) };
+  const freshOutput = () => join(capturesRoot,new Date().toISOString().replace(/[:.]/g,'-'));
+  const initial = { ...defaults, repo: '', output: freshOutput() };
   let state = { status: 'idle', kind: null, logs: [], progress: null, result: null, latestFile: null, output: null, runId: 0 };
   let controller, job, closing = false, picking = false;
   let previewOutput = null;
@@ -82,6 +84,22 @@ export async function createGuiServer({ historyFile, folderOpener = openFolder }
       if (req.method !== 'POST' || req.headers['content-type'] !== 'application/json') return json(res, { error: 'JSON POST required' }, 405);
       const data = await body(req);
       if (path === 'api/recent') return json(res, await recent.add(data.repo));
+      if (path === 'api/reopen') {
+        if(['running','cancelling'].includes(state.status)) throw new Error('Finish the current operation before reopening a repository.');
+        const entry=await recent.get(data.repo);
+        let saved, message='No saved capture folder is linked yet. Choose an existing output folder and play it once to remember it.';
+        if(entry?.output) {
+          try { saved=await savedCapture(entry.output); }
+          catch { message=`The saved capture folder is missing or unavailable: ${entry.output}. Choose its new location to reconnect it.`; }
+        } else {
+          try { saved=await findSavedCapture(data.repo,capturesRoot); } catch { /* Repository or capture storage currently unavailable. */ }
+        }
+        const output=saved?.config.output || entry?.output || freshOutput();
+        const repositories=await recent.add(data.repo,saved ? {output} : {});
+        state={status:'idle',kind:null,logs:[],progress:saved ? {captured:saved.count,failed:0,total:0,completed:0,frame:saved.frame} : null,
+          result:null,latestFile:saved?.frame.file || null,output:saved ? output : null,runId:state.runId+1};
+        return json(res,{repositories,config:{...defaults,repo:data.repo,output,...saved?.config},message:saved ? `Restored ${saved.count} saved frames. Play sequence is ready. Use Detect setup before capturing additional commits.` : message});
+      }
       if (path === 'api/preview') {
         if (['running','cancelling'].includes(state.status)) throw new Error('Wait for the current operation to finish before playing the sequence.');
         if(typeof data.output !== 'string' || !data.output.trim()) throw new Error('Choose a capture output folder first.');
@@ -93,7 +111,8 @@ export async function createGuiServer({ historyFile, folderOpener = openFolder }
         if(!frames.length) throw new Error('This folder has no captured frames recorded in manifest.json. Choose a completed capture folder.');
         if(frames.some(frame=>!/^frames\/frame-\d{6,}\.png$/.test(frame.file))) throw new Error('The manifest contains an invalid frame path.');
         previewOutput = root;
-        return json(res,{url:`preview/preview.html?autoplay=1&t=${Date.now()}`,count:frames.length});
+        const repositories=typeof data.repo==='string' && data.repo.trim() ? await recent.add(data.repo,{output:root}) : undefined;
+        return json(res,{url:`preview/preview.html?autoplay=1&t=${Date.now()}`,count:frames.length,repositories});
       }
       if (path === 'api/detect') {
         if (['running','cancelling'].includes(state.status)) throw new Error('Finish the current operation before detecting setup.');
@@ -114,12 +133,21 @@ export async function createGuiServer({ historyFile, folderOpener = openFolder }
         controller = new AbortController();
         state = { status: 'running', kind: data.kind, logs: [], progress: null, result: null, latestFile: null,
           output: config.list ? null : config.output, runId: state.runId + 1 };
+        let hasCapturedFrame=false;
+        const rememberCapture = async () => {
+          if(config.list)return;
+          try { await savedCapture(config.output); }
+          catch { return; /* No frames: keep the previous sequence. */ }
+          await recent.add(config.repo,{output:config.output}).catch(error=>addLog(`Could not remember the capture folder: ${error.message}`));
+        };
         job = capture(config, { signal: controller.signal, log: addLog, onProgress: progress => {
           state.progress = progress;
+          if(progress.frame?.status==='captured')hasCapturedFrame=true;
           if (state.output && progress.frame?.file) state.latestFile = progress.frame.file;
-        } }).then(result => {
+        } }).then(async result => {
+          await rememberCapture();
           state.result = result; state.status = (result.runFailed ?? result.failed) ? 'completed-with-errors' : 'completed';
-        }).catch(error => { state.status = controller.signal.aborted ? 'cancelled' : 'failed'; state.error = error.message; addLog(error.message); });
+        }).catch(async error => { if(hasCapturedFrame)await rememberCapture(); state.status = controller.signal.aborted ? 'cancelled' : 'failed'; state.error = error.message; addLog(error.message); });
         const repositories = await recent.add(config.repo).catch(error => { addLog(`Could not save recent repositories: ${error.message}`); return null; });
         return json(res, { ok: true, repositories });
       }
