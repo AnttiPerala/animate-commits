@@ -1,0 +1,12 @@
+{
+  "repo": "../../my-electron-app",
+  "output": "../captures/electron",
+  "appType": "electron",
+  "install": "npm ci",
+  "electronArgs": ["."],
+  "width": 1920,
+  "height": 1080,
+  "selector": "#root",
+  "delay": 1000,
+  "maxFrames": 40
+}

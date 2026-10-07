@@ -1,0 +1,13 @@
+{
+  "repo": "../../my-python-desktop-app",
+  "output": "../captures/python-native",
+  "appType": "native",
+  "install": "python -m venv .venv && .venv\\Scripts\\python.exe -m pip install -r requirements.txt",
+  "start": ".venv\\Scripts\\python.exe app.py",
+  "nativeWindowTitle": "My App",
+  "width": 1280,
+  "height": 720,
+  "delay": 1500,
+  "timeout": 60000,
+  "maxFrames": 40
+}

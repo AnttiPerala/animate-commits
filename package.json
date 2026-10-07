@@ -1,0 +1,25 @@
+{
+  "name": "animate-commits",
+  "version": "0.1.0",
+  "description": "Turn a Git repository's history into an editor-ready PNG sequence.",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "animate-commits": "./bin/animate-commits.js"
+  },
+  "scripts": {
+    "build:exe": "node -e \"require(require('node:path').join(process.env.npm_package_json,'../scripts/task.cjs'))\" --",
+    "test": "node -e \"require(require('node:path').join(process.env.npm_package_json,'../scripts/task.cjs'))\" --",
+    "capture": "node -e \"require(require('node:path').join(process.env.npm_package_json,'../scripts/task.cjs'))\" --",
+    "browser:install": "node -e \"require(require('node:path').join(process.env.npm_package_json,'../scripts/task.cjs'))\" --"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "playwright": "^1.58.0"
+  },
+  "devDependencies": {
+    "postject": "^1.0.0-alpha.6"
+  }
+}
