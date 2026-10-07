@@ -3,7 +3,7 @@ const fields = ['repo','output','update','appType','install','start','url','nati
 fields.push('cloneTimeout');
 const numeric = new Set(['maxFrames','width','height','every','delay','fps','timeout','commandTimeout','cloneTimeout','port']);
 const nullable = new Set(['install','start','nativeWindowTitle','from','selector','electronExecutable','electronWindowUrl','nativeReadyFile']);
-let loaded = {}, lastState = {}, imageKey = '', logText = '', listKey = '', submitting = false, openingOutput = false;
+let loaded = {}, lastState = {}, imageKey = '', logText = '', listKey = '', submitting = false, openingOutput = false, openingPreview = false;
 let detected = [], detectionKey = '', detecting = false, detectionId = 0;
 const setupKey = () => JSON.stringify([$('repo').value.trim(), $('directory').value || '.']);
 function clearDetection() { detectionId++; detected=[]; detectionKey=''; $('suggestions').hidden=true; $('detectStatus').textContent='Choose Detect setup to inspect this repository.'; }
@@ -111,6 +111,8 @@ $('stop').onclick = async () => { try { await api('cancel',{}); await refresh();
 function outputButton() {
   $('openOutput').disabled = openingOutput || !$('output').value.trim();
   $('openOutput').textContent = openingOutput ? 'Opening folder…' : 'Open output folder';
+  $('preview').disabled = openingPreview || ['running','cancelling'].includes(lastState.status) || !$('output').value.trim();
+  $('preview').textContent = openingPreview ? 'Opening sequence…' : 'Play sequence ↗';
 }
 $('output').addEventListener('input', outputButton);
 $('openOutput').onclick = async () => {
@@ -119,7 +121,14 @@ $('openOutput').onclick = async () => {
   catch(e) { error(e.message); }
   finally { openingOutput = false; outputButton(); }
 };
-$('preview').onclick = () => { $('previewFrame').src = 'output/preview.html?run=' + lastState.runId; $('previewDialog').showModal(); };
+$('preview').onclick = async () => {
+  openingPreview=true; outputButton(); error('');
+  try {
+    const result=await api('preview',{output:$('output').value});
+    $('previewFrame').src=result.url; $('previewDialog').showModal();
+  } catch(e) { error(e.message); }
+  finally { openingPreview=false; outputButton(); }
+};
 $('closePreview').onclick = () => { $('previewDialog').close(); $('previewFrame').src = 'about:blank'; };
 async function refresh() {
   const state = await api('state'); lastState = state;
@@ -138,7 +147,6 @@ async function refresh() {
   const commit = p.commit || p.frame;
   $('currentCommit').textContent = commit ? `${commit.hash.slice(0,10)} · ${commit.subject}` : running?'Preparing an isolated checkout…':state.kind==='inspect'?'Commit selection is ready below.':'Inspect commits to see which revisions will be captured.';
   outputButton();
-  $('preview').disabled = running || !state.latestFile;
   if(state.latestFile) {
     const key = `${state.runId}/${state.latestFile}`;
     if(key!==imageKey) { imageKey=key; $('latest').src='output/'+state.latestFile+'?run='+state.runId; }

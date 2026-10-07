@@ -184,6 +184,8 @@ captures/my-app/
 
 Open `preview.html` in a browser. Import `frames/frame-000001.png` as an **image sequence** in your video editor and choose the interpretation frame rate, for example 2 fps for half a second per commit. Files have consistent dimensions and uninterrupted numbering even when a commit fails. `fps` controls the preview and records your intended rate in the manifest; PNG files do not contain a sequence playback rate. This exports individual PNG frames, not a single APNG file.
 
+In the app, **Play sequence** opens the selected output folder's sequence and starts playback immediately. You can select a previous capture folder after restarting the app; no new capture is required. The app builds its player from `manifest.json`, so old or missing `preview.html` files do not prevent playback. Pause, stepping, scrubbing, and playback speed are available inside the player. Opening the standalone `preview.html` directly starts paused; click its Play button.
+
 Optional FFmpeg conversion (requires FFmpeg separately):
 
 ```sh

@@ -12,6 +12,7 @@ import { recentRepositories } from './recent.js';
 import { openFolder } from './open-folder.js';
 import { version } from './version.js';
 import { detectSetup } from './detect.js';
+import { previewHtml } from './preview.js';
 
 const assets = fileURLToPath(new URL('../ui/', import.meta.url));
 const dialogScript = fileURLToPath(new URL('../helpers/gui-dialog.ps1', import.meta.url));
@@ -35,6 +36,7 @@ export async function createGuiServer({ historyFile, folderOpener = openFolder }
   const initial = { ...defaults, repo: '', output: join(homedir(), 'Videos', 'Animate Commits', new Date().toISOString().replace(/[:.]/g, '-')) };
   let state = { status: 'idle', kind: null, logs: [], progress: null, result: null, latestFile: null, output: null, runId: 0 };
   let controller, job, closing = false, picking = false;
+  let previewOutput = null;
   const addLog = message => { state.logs.push(String(message)); if (state.logs.length > 400) state.logs.shift(); };
   async function body(req) {
     let text = '';
@@ -63,18 +65,36 @@ export async function createGuiServer({ historyFile, folderOpener = openFolder }
           res.writeHead(200, { 'Content-Type': file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html; charset=utf-8' });
           return res.end(await readFile(join(assets, file)));
         }
-        if (state.output && /^output\/(preview\.html|frames\/frame-\d{6,}\.png)$/.test(path)) {
-          const file = resolve(state.output, path.slice(7));
-          if (!contained(await realpath(state.output), await realpath(file))) return json(res, { error: 'Forbidden' }, 403);
+        const outputMatch = /^(output|preview)\/(preview\.html|frames\/frame-\d{6,}\.png)$/.exec(path);
+        const outputRoot = outputMatch?.[1] === 'preview' ? previewOutput : state.output;
+        if (outputRoot && outputMatch) {
+          const file = resolve(outputRoot, outputMatch[2] === 'preview.html' ? 'manifest.json' : outputMatch[2]);
+          if (!contained(await realpath(outputRoot), await realpath(file))) return json(res, { error: 'Forbidden' }, 403);
           res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; object-src 'none'; base-uri 'none'");
-          res.writeHead(200, { 'Content-Type': file.endsWith('.png') ? 'image/png' : 'text/html; charset=utf-8' });
-          return res.end(await readFile(file));
+          const preview = outputMatch[2] === 'preview.html';
+          const contents = await readFile(file);
+          const response = preview ? previewHtml(JSON.parse(contents.toString('utf8'))) : contents;
+          res.writeHead(200, { 'Content-Type': preview ? 'text/html; charset=utf-8' : 'image/png' });
+          return res.end(response);
         }
         return json(res, { error: 'Not found' }, 404);
       }
       if (req.method !== 'POST' || req.headers['content-type'] !== 'application/json') return json(res, { error: 'JSON POST required' }, 405);
       const data = await body(req);
       if (path === 'api/recent') return json(res, await recent.add(data.repo));
+      if (path === 'api/preview') {
+        if (['running','cancelling'].includes(state.status)) throw new Error('Wait for the current operation to finish before playing the sequence.');
+        if(typeof data.output !== 'string' || !data.output.trim()) throw new Error('Choose a capture output folder first.');
+        const root = await realpath(resolve(data.output.trim()));
+        const manifestFile = await realpath(join(root,'manifest.json'));
+        if(!contained(root,manifestFile)) throw new Error('The manifest must stay inside the capture folder.');
+        const manifest = JSON.parse(await readFile(manifestFile,'utf8'));
+        const frames = Array.isArray(manifest.frames) ? manifest.frames.filter(frame=>frame.status==='captured') : [];
+        if(!frames.length) throw new Error('This folder has no captured frames recorded in manifest.json. Choose a completed capture folder.');
+        if(frames.some(frame=>!/^frames\/frame-\d{6,}\.png$/.test(frame.file))) throw new Error('The manifest contains an invalid frame path.');
+        previewOutput = root;
+        return json(res,{url:`preview/preview.html?autoplay=1&t=${Date.now()}`,count:frames.length});
+      }
       if (path === 'api/detect') {
         if (['running','cancelling'].includes(state.status)) throw new Error('Finish the current operation before detecting setup.');
         return json(res, await detectSetup(data.repo, data.directory));

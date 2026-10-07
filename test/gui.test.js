@@ -66,8 +66,14 @@ test('graphical interface inspects, captures, previews and reports errors', { ti
     await page.waitForFunction(() => document.getElementById('status').textContent === 'Capture complete', { }, { timeout: 60000 });
     assert.equal(await page.locator('#frameCount').textContent(), '2 FRAMES · 0 FAILED');
     await page.locator('#latest').evaluate(img => img.decode());
+    // Existing captures may have an older standalone player. The app uses the manifest.
+    await writeFile(join(temp, 'output/preview.html'), '<h1>Old player</h1>');
     await page.locator('#preview').click();
     const preview = page.frameLocator('#previewFrame');
+    await preview.locator('#play').filter({hasText:'Pause'}).waitFor();
+    await preview.locator('#count').filter({hasText:'2 / 2 frames'}).waitFor();
+    await preview.locator('#play').click();
+    await preview.locator('#scrub').evaluate(input => { input.value='0'; input.dispatchEvent(new Event('input',{bubbles:true})); });
     await preview.locator('#next').click();
     assert.equal(await preview.locator('#message').textContent(), 'Second UI');
     await page.locator('#closePreview').click();

@@ -1,5 +1,6 @@
 export function previewHtml(manifest) {
-  const data = JSON.stringify({ frames: manifest.frames.filter(f => f.status === 'captured'), fps: manifest.settings.fps }).replaceAll('<', '\\u003c');
+  const fps = Number(manifest.settings?.fps);
+  const data = JSON.stringify({ frames: manifest.frames.filter(f => f.status === 'captured'), fps: Number.isFinite(fps) && fps > 0 ? fps : 2 }).replaceAll('<', '\\u003c');
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Animate Commits · Preview</title>
 <style>
@@ -18,5 +19,8 @@ function show(i){if(!frames.length){$('message').textContent='No frames captured
 function pause(){clearInterval(timer);timer=null;$('play').textContent='Play'}
 function play(){if(frames.length<2)return;timer=setInterval(()=>show(index+1),1000/Number($('speed').value));$('play').textContent='Pause'}
 $('play').onclick=()=>timer?pause():play();$('prev').onclick=()=>{pause();show(index-1)};$('next').onclick=()=>{pause();show(index+1)};$('scrub').oninput=()=>{pause();show(Number($('scrub').value))};$('speed').onchange=()=>{if(timer){pause();play()}};document.addEventListener('keydown',e=>{if(['INPUT','SELECT','BUTTON'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();timer?pause():play()}if(e.code==='ArrowLeft'){pause();show(index-1)}if(e.code==='ArrowRight'){pause();show(index+1)}});show(0);
+if(new URLSearchParams(location.search).get('autoplay')==='1')play();
+$('play').disabled=frames.length<2;$('prev').disabled=$('next').disabled=$('scrub').disabled=!frames.length;
+window.addEventListener('pagehide',pause);
 </script></body></html>`;
 }
