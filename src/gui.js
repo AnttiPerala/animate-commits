@@ -11,6 +11,7 @@ import { run } from './process.js';
 import { recentRepositories } from './recent.js';
 import { openFolder } from './open-folder.js';
 import { version } from './version.js';
+import { detectSetup } from './detect.js';
 
 const assets = fileURLToPath(new URL('../ui/', import.meta.url));
 const dialogScript = fileURLToPath(new URL('../helpers/gui-dialog.ps1', import.meta.url));
@@ -74,6 +75,10 @@ export async function createGuiServer({ historyFile, folderOpener = openFolder }
       if (req.method !== 'POST' || req.headers['content-type'] !== 'application/json') return json(res, { error: 'JSON POST required' }, 405);
       const data = await body(req);
       if (path === 'api/recent') return json(res, await recent.add(data.repo));
+      if (path === 'api/detect') {
+        if (['running','cancelling'].includes(state.status)) throw new Error('Finish the current operation before detecting setup.');
+        return json(res, await detectSetup(data.repo, data.directory));
+      }
       if (path === 'api/cancel') {
         if (controller && ['running', 'cancelling'].includes(state.status)) {
           state.status = 'cancelling'; controller.abort(new Error('Capture cancelled'));

@@ -4,6 +4,40 @@ fields.push('cloneTimeout');
 const numeric = new Set(['maxFrames','width','height','every','delay','fps','timeout','commandTimeout','cloneTimeout','port']);
 const nullable = new Set(['install','start','nativeWindowTitle','from','selector','electronExecutable','electronWindowUrl','nativeReadyFile']);
 let loaded = {}, lastState = {}, imageKey = '', logText = '', listKey = '', submitting = false, openingOutput = false;
+let detected = [], detectionKey = '', detecting = false, detectionId = 0;
+const setupKey = () => JSON.stringify([$('repo').value.trim(), $('directory').value || '.']);
+function clearDetection() { detectionId++; detected=[]; detectionKey=''; $('suggestions').hidden=true; $('detectStatus').textContent='Choose Detect setup to inspect this repository.'; }
+function describeSetup() {
+  const item = detected[Number($('setupChoice').value)];
+  if(!item) return;
+  $('setupReason').textContent = [item.reason, ...item.notes].join(' ');
+  $('setupCommands').textContent = `App: ${item.settings.appType}\nFolder: ${item.settings.directory}\nInstall: ${item.settings.install || '(none)'}\nStart: ${item.settings.start || '(built-in capture)'}\n${item.settings.appType === 'web' ? 'URL: '+item.settings.url : ''}`;
+}
+async function detect() {
+  if(detecting || !$('repo').value.trim()) return;
+  const id = ++detectionId, key = setupKey(); detecting=true;
+  $('detectStatus').textContent='Inspecting project files…'; $('suggestions').hidden=true; busy(['running','cancelling'].includes(lastState.status) || submitting);
+  try {
+    const result = await api('detect',{repo:$('repo').value,directory:$('directory').value || '.'});
+    if(id !== detectionId || key !== setupKey()) return;
+    detected=result.candidates; detectionKey=key;
+    $('detectStatus').textContent=[result.message,...result.warnings].join(' ');
+    $('setupChoice').replaceChildren(...detected.map((item,i)=>new Option(item.label,String(i))));
+    $('suggestions').hidden=!detected.length; describeSetup();
+  } catch(e) { if(id === detectionId) $('detectStatus').textContent=e.message; }
+  finally { detecting=false; busy(['running','cancelling'].includes(lastState.status) || submitting); }
+}
+$('detect').onclick = detect;
+$('setupChoice').onchange = describeSetup;
+$('repo').addEventListener('input',clearDetection);
+$('repo').addEventListener('change',detect);
+$('directory').addEventListener('input',clearDetection);
+$('applySetup').onclick = () => {
+  if(detectionKey !== setupKey()) { clearDetection(); return; }
+  const item=detected[Number($('setupChoice').value)]; if(!item)return;
+  try { fill({...config(),...item.settings}); $('detectStatus').textContent=`Applied ${item.label}. Ready to capture; settings remain editable.`; error(''); }
+  catch(e) { error(e.message); }
+};
 async function api(path, value) {
   const response = await fetch('api/' + path, value === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
   const data = await response.json(); if(!response.ok) throw new Error(data.error || 'Request failed'); return data;
@@ -18,6 +52,7 @@ $('recentRepos').onchange = async () => {
   const repo = $('recentRepos').value;
   if(!repo) return;
   $('repo').value = repo;
+  clearDetection(); detect();
   try { showRecent(await api('recent', {repo})); } catch(e) { error(e.message); }
 };
 function mode() {
@@ -51,10 +86,11 @@ function config() {
   return c;
 }
 function busy(value) {
-  $('settings').disabled = value; ['load','save','inspect','capture'].forEach(id => $(id).disabled = value);
+  $('settings').disabled = value;
+  ['load','save','inspect','capture','detect'].forEach(id => $(id).disabled = value || detecting);
 }
 async function start(kind) {
-  if(submitting || !$('captureForm').reportValidity()) return;
+  if(submitting || detecting || !$('captureForm').reportValidity()) return;
   submitting = true; error(''); busy(true);
   try { const result = await api('start',{kind,config:config()}); showRecent(result.repositories); await refresh(); }
   catch(e) { error(e.message); busy(false); }
@@ -66,10 +102,10 @@ $('appType').onchange = mode;
 $('update').onchange = mode;
 for(const [button,input] of [['browseRepo','repo'],['browseOutput','output']]) $(button).onclick = async () => {
   $(button).disabled = true;
-  try { const result = await api('browse',{target:input}); if(result.path) $(input).value = result.path; showRecent(result.repositories); } catch(e) { error(e.message); }
+  try { const result = await api('browse',{target:input}); if(result.path) { $(input).value = result.path; if(input==='repo') { clearDetection(); detect(); } } showRecent(result.repositories); } catch(e) { error(e.message); }
   finally { $(button).disabled = false; }
 };
-$('load').onclick = async () => { try { const result = await api('load',{}); if(result.config) { fill(result.config); showRecent(result.repositories); error(''); } } catch(e) { error(e.message); } };
+$('load').onclick = async () => { try { const result = await api('load',{}); if(result.config) { clearDetection(); fill(result.config); showRecent(result.repositories); error(''); } } catch(e) { error(e.message); } };
 $('save').onclick = async () => { if(!$('captureForm').reportValidity())return; try { await api('save',{config:config()}); error(''); } catch(e) { error(e.message); } };
 $('stop').onclick = async () => { try { await api('cancel',{}); await refresh(); } catch(e) { error(e.message); } };
 function outputButton() {

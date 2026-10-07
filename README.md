@@ -34,6 +34,16 @@ The project has a local Git repository. `AGENTS.md` instructs coding agents to c
 
 ## Setup
 
+### Detect application settings
+
+Choose a local repository, then use **Detect setup → Use these settings**. Browsing for a repository or choosing a recent one automatically shows suggestions. The detector reads current local files without installing dependencies or executing repository code. It shows its evidence and proposed commands, preserves your output folder and frame settings, and leaves all settings editable.
+
+Supported suggestions include Node start/dev scripts, Vite, Next.js development servers, React scripts, Electron, static HTML sites, and Python Tkinter/PyQt/PySide/wx, Flask, Streamlit, and Django entry points. It checks common app subfolders when the root has no recognized setup. Node package managers are inferred from package metadata and lockfiles. Python suggestions create a virtual environment in each disposable checkout.
+
+For projects with both a web server and Electron (such as Afterward), the web setup is suggested first and Electron is offered separately. Detection does not infer arbitrary build chains, authentication, databases, or project-specific startup logic. Suggestions describe the current working tree, not every historical commit; older revisions may need different commands. Remote URLs need a local clone for setup detection. Explicit commands and saved configurations remain supported.
+
+A capture with empty launch settings now checks for recognizable local applications before cloning, and asks you to apply their setup instead of repeatedly capturing a nonexistent root page.
+
 Running from source requires Node.js 22+ and Git. Browser/Electron capture supports Windows, macOS, and Linux; native desktop capture currently requires Windows 10/11 and an unlocked interactive desktop. Integration tests exercise the host platform. On Windows, use PowerShell for the commands below.
 
 ```sh

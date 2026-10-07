@@ -14,6 +14,7 @@ import { openElectron } from './electron.js';
 import { captureNative } from './native.js';
 import { lockOutput, lockName, readExistingCapture, selectUpdates } from './updates.js';
 import { cleanupWorkspace } from './cleanup.js';
+import { detectSetup } from './detect.js';
 
 async function ready(url, server, timeout, signal) {
   const deadline = Date.now() + timeout;
@@ -41,6 +42,14 @@ async function save(output, manifest) {
 
 export async function capture(input, { configFile, signal, log = console.log, onProgress = () => {} } = {}) {
   const c = normalizeConfig(input, configFile);
+  // Catch the common missing-server setup before cloning and repeating 404s.
+  if (!c.list && c.appType === 'web' && !c.start && !c.install && c.staticDir === '.' && new URL(c.url.replaceAll('{port}', String(c.port))).pathname === '/') {
+    const setup = await detectSetup(c.repo, c.directory).catch(() => null);
+    if(setup?.candidates.length && !setup.candidates.some(item => item.settings.appType === 'web' && !item.settings.start && !item.settings.install && item.settings.directory === c.directory && item.settings.staticDir === '.')) {
+      const item = setup.candidates[0];
+      throw new Error(`This project needs application setup (${item.label}). Click Detect setup, then Use these settings before capturing. Suggested install: ${item.settings.install || '(none)'}; start: ${item.settings.start || '(built-in capture)'}.`);
+    }
+  }
   if (c.appType === 'native' && process.platform !== 'win32') throw new Error('Native desktop capture currently requires Windows');
   const url = c.url.replaceAll('{port}', String(c.port));
   const urlPort = Number(new URL(url).port || (url.startsWith('https:') ? 443 : 80));

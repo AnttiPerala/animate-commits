@@ -42,6 +42,12 @@ test('graphical interface inspects, captures, previews and reports errors', { ti
     await page.waitForFunction(() => document.getElementById('error').textContent.includes('Output folder does not exist'));
     await page.locator('#output').fill(join(temp, 'output'));
     await page.locator('#width').fill('640'); await page.locator('#height').fill('360');
+    await page.locator('#detect').click();
+    await page.locator('#applySetup').waitFor({state:'visible'});
+    await page.locator('#applySetup').click();
+    assert.equal(await page.locator('#start').inputValue(), '');
+    assert.equal(await page.locator('#width').inputValue(), '640');
+    assert.equal(await page.locator('#output').inputValue(), join(temp, 'output'));
     const portServer = net.createServer();
     await new Promise(resolve => portServer.listen(0, '127.0.0.1', resolve));
     const port = portServer.address().port;
