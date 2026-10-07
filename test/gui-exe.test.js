@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as delay } from 'node:timers/promises';
 import { launch, run, stop } from '../src/process.js';
+import { version } from '../src/version.js';
 
 test('double-click entry opens the graphical window without a console and closes cleanly', {
   skip: !process.env.ANIMATE_GUI_EXE || process.platform !== 'win32', timeout: 120000,
@@ -23,6 +24,7 @@ test('double-click entry opens the graphical window without a console and closes
     const output = await run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolve('helpers/capture-window.ps1'), '-OptionsFile', options], { timeout: 80000 });
     const metadata = JSON.parse(output);
     assert.match(metadata.title, /Animate Commits/);
+    assert.ok(metadata.title.includes(`v${version}`), `Expected v${version} in ${metadata.title}`);
     assert.equal(app.exited, false, app.tail());
     const frame = await readFile(screenshot);
     assert.equal(frame.readUInt32BE(16), 1320);

@@ -2,3 +2,4 @@
 :root{scrollbar-color:#c8d8cc #f7faf7;scrollbar-width:thin}
 @media(min-width:951px){main{padding-bottom:20px}.setup,.results{max-height:calc(100vh - 250px);overflow-y:auto;scrollbar-width:thin}.setup .run-actions{position:sticky;bottom:0;background:#fff;z-index:2;padding-top:12px;padding-bottom:4px;box-shadow:0 -12px 16px #fff}.stage{aspect-ratio:16/9}.results{padding-right:3px}}
 @media(min-width:951px){.setup{display:flex;flex-direction:column;height:calc(100vh - 250px);overflow:hidden}.setup fieldset{flex:1 1 0;min-height:0;overflow-y:auto;padding-right:4px;scrollbar-width:thin}.setup .isolation{flex-shrink:0;margin:12px 0}.setup .run-actions{position:static;flex-shrink:0;padding:0;box-shadow:none}}
+.app-version{display:inline-block;font-size:11px;font-weight:500;letter-spacing:0;color:#638178;background:#f0f5f2;border:1px solid #dce8e1;border-radius:5px;padding:3px 6px;vertical-align:middle;margin-left:5px;white-space:nowrap}

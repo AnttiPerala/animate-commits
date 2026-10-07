@@ -4,8 +4,9 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { capture } from '../src/capture.js';
 import { defaults } from '../src/config.js';
+import { version } from '../src/version.js';
 
-const help = `Animate Commits — Git history → numbered PNG frames
+const help = `Animate Commits v${version} — Git history → numbered PNG frames
 
 Usage:
   animate-commits.exe <repository path or URL> [options]
@@ -35,6 +36,7 @@ Options:
   --fail-fast        Stop at the first failed commit
   --list            List selected commits without running app code
   --help            Show this help
+  --version         Show the application version
 
 Web mode without a start command uses the built-in static web server.
 Electron mode launches the checkout's Electron binary; configure electronArgs in JSON.
@@ -53,9 +55,10 @@ try {
     install: { type: 'string' }, directory: { type: 'string' }, 'static-dir': { type: 'string' },
     url: { type: 'string' }, width: { type: 'string' }, height: { type: 'string' },
     delay: { type: 'string' }, selector: { type: 'string' }, 'fail-fast': { type: 'boolean' },
-    list: { type: 'boolean' }, update: { type: 'boolean' }, init: { type: 'boolean' }, help: { type: 'boolean' },
+    list: { type: 'boolean' }, update: { type: 'boolean' }, init: { type: 'boolean' }, help: { type: 'boolean' }, version: { type: 'boolean' },
   } });
-  if (values.help) { console.log(help); }
+  if (values.version) { console.log(version); }
+  else if (values.help) { console.log(help); }
   else if (values.init) {
     const file = resolve('animate-commits.json');
     await writeFile(file, JSON.stringify({ ...defaults, repo: '../my-app', output: './captures',

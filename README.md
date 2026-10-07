@@ -4,28 +4,33 @@ Turn the visual history of a browser, Electron, or native Python desktop app int
 
 ## Windows executable
 
-**Double-click `dist/animate-commits.exe` to open the graphical interface.** It opens a dedicated application window, without a console. Choose a repository and an empty output folder, select Browser, Electron, or Python desktop, and enter the app's install/start commands. You can inspect commits, watch capture progress, cancel a run, play the resulting sequence, and open the output folder. Load/Save Configuration lets you reuse settings.
+**Double-click `animate-commits.exe` in the newest `dist/v<version>/` folder to open the graphical interface.** Its version appears beside the Animate Commits title and in the window title. It opens a dedicated application window, without a console. Choose a repository and an empty output folder, select Browser, Electron, or Python desktop, and enter the app's install/start commands. You can inspect commits, watch capture progress, cancel a run, play the resulting sequence, and open the output folder. Load/Save Configuration lets you reuse settings.
 
 The interface uses an isolated Edge/Chrome app window and a local-only capture engine; it does not use your personal browser profile. Microsoft Edge or Google Chrome must be installed for the interface (a Playwright Chromium installation also works). Closing the window cancels any current run and cleans up its temporary checkout. The default output folder is under your Videos folder, outside the selected repository.
 
 **Recent repositories** remembers the last 20 repositories, newest first, between launches and EXE updates. Browsing for a repository, loading a configuration, inspecting commits, or starting a capture adds it to the list. Selecting a recent repository fills the repository field and moves it to the top without starting a capture. Repeated entries are deduplicated. History is stored in `%APPDATA%\Animate Commits\recent-repositories.json` on Windows, outside your repositories; it stores paths/URLs, not capture commands or settings. Embedded HTTP credentials and query strings are omitted from saved URLs.
 
-For command-line use, the build also includes `dist/animate-commits-cli.exe`:
+For command-line use, the same version folder includes `animate-commits-cli.exe`. From inside that folder:
 
 ```powershell
-.\dist\animate-commits-cli.exe --help
-.\dist\animate-commits-cli.exe C:\projects\my-app --app-type native --start "python app.py" --window-title "My App" --output .\captures\desktop
-.\dist\animate-commits-cli.exe --config .\examples\python-native.json
+.\animate-commits-cli.exe --version
+.\animate-commits-cli.exe --help
+.\animate-commits-cli.exe C:\projects\my-app --app-type native --start "python app.py" --window-title "My App" --output .\captures\desktop
+.\animate-commits-cli.exe --config .\examples\python-native.json
 ```
 
 Each executable includes Node.js, Playwright, and the capture helper in a single file, extracting its own runtime to a temporary directory during execution. No Node.js installation is required for the tool itself. **Git and the target application's runtime/dependencies remain required**: Python for Python apps, Node/npm for JavaScript build commands, and an installed Edge/Chrome (or compatible Playwright browser) for web capture. Electron comes from the target app. The native adapter uses built-in Windows PowerShell and Win32 APIs, with no extra Python capture packages.
 
-The executable is an unsigned Windows binary for the build machine's architecture. `dist/SHA256SUMS.txt` contains its checksum. Distribution licenses and example configurations are alongside it. To rebuild on Windows with Node.js installed:
+The executable is an unsigned Windows binary for the build machine's architecture. Each version folder contains `SHA256SUMS.txt`, `VERSION.txt`, distribution licenses, and example configurations. To rebuild on Windows with Node.js installed:
 
 ```powershell
 npm ci
 npm run build:exe
 ```
+
+Each build reserves the next patch version in `package.json` and `package-lock.json`, embeds it in both executables, and writes to `dist/v<version>/`. Failed attempts keep their reserved version, so the next attempt gets a new number. Concurrent builds are blocked by `.version-build.lock`; remove that file after a crash only once the build process has stopped. `ANIMATE_BUILD_DIR` can override the output folder.
+
+The project has a local Git repository. `AGENTS.md` instructs coding agents to commit each completed, verified major feature or fix, including its version metadata. Generated EXEs, captures, dependencies, and secrets are excluded. This is a development workflow, not a background watcher; ordinary app usage does not create Git commits.
 
 ## Setup
 
@@ -197,7 +202,7 @@ npm test
 
 Tests build real temporary repositories, run captures in Chromium, verify screenshot dimensions and changes, check failure handling and server cleanup, exercise the preview controls, and confirm the source working tree is untouched.
 
-On Windows the native integration test requires `python` with Tkinter. Tests run sequentially because they share the desktop. Set `ANIMATE_TEST_EXE` to the absolute built executable path to run native/Electron capture through the packaged binary and enable the packaged web smoke test. In PowerShell use `$env:ANIMATE_TEST_EXE = (Get-Item dist/animate-commits.exe).FullName`.
+On Windows the native integration test requires `python` with Tkinter. Tests run sequentially because they share the desktop. Set `ANIMATE_TEST_EXE` to the absolute versioned `animate-commits-cli.exe` path to run native/Electron capture through the packaged binary and enable the packaged web smoke test. Set `ANIMATE_GUI_EXE` to the matching `animate-commits.exe` to test the graphical launch. In PowerShell use `(Get-Item <path-to-exe>).FullName` to obtain an absolute path.
 
 The Electron integration test is enabled by setting `ANIMATE_ELECTRON_EXECUTABLE` to an installed Electron binary before running `npm test`. It exercises a splash screen plus main window, a broken historical revision, and consistent output dimensions. Without that variable it is explicitly skipped; Electron is not a required dependency of this tool.
 

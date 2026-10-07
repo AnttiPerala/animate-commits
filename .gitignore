@@ -2,3 +2,7 @@ node_modules/
 captures/
 *.log
 dist/
+.version-build.lock
+.env
+.env.*
+!.env.example

@@ -7,6 +7,7 @@ import net from 'node:net';
 import { createGuiServer } from '../src/gui.js';
 import { launchBrowser } from '../src/browser.js';
 import { git } from '../src/git.js';
+import { version } from '../src/version.js';
 
 test('graphical interface inspects, captures, previews and reports errors', { timeout: 120000 }, async () => {
   const temp = await mkdtemp(join(tmpdir(), 'animate-gui-test-'));
@@ -26,6 +27,9 @@ test('graphical interface inspects, captures, previews and reports errors', { ti
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     await page.goto(app.url);
     await page.waitForFunction(() => document.getElementById('width').value === '1920');
+    assert.equal(await page.locator('#version').textContent(), `v${version}`);
+    assert.equal(await page.locator('#version').isVisible(), true);
+    assert.equal(await page.title(), `Animate Commits v${version}`);
     await mkdir(resolve('captures/gui'), { recursive: true });
     await page.screenshot({ path: resolve('captures/gui/interface.png'), fullPage: true });
     await page.locator('#repo').fill(temp);

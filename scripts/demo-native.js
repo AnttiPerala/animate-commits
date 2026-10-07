@@ -49,6 +49,7 @@ root.mainloop()
   await writeFile(config, JSON.stringify({ repo: temp, output: resolve(process.argv[2] || 'captures/native-demo'),
     appType: 'native', start: 'python app.py', nativeWindowTitle: '^Orbit Python Desktop$', nativeReadyFile: 'ready.flag',
     width: 960, height: 600, delay: 300, timeout: 15000 }));
-  const result = await run(resolve('dist/animate-commits.exe'), ['--config', config], { timeout: 120000 });
+  const { version } = await import('../src/version.js');
+  const result = await run(resolve(`dist/v${version}/animate-commits-cli.exe`), ['--config', config], { timeout: 120000 });
   console.log(result);
 } finally { await rm(temp, { recursive: true, force: true, maxRetries: 3 }); }

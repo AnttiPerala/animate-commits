@@ -10,6 +10,7 @@ import { defaults, normalizeConfig, contained } from './config.js';
 import { run } from './process.js';
 import { recentRepositories } from './recent.js';
 import { openFolder } from './open-folder.js';
+import { version } from './version.js';
 
 const assets = fileURLToPath(new URL('../ui/', import.meta.url));
 const dialogScript = fileURLToPath(new URL('../helpers/gui-dialog.ps1', import.meta.url));
@@ -53,6 +54,7 @@ export async function createGuiServer({ historyFile, folderOpener = openFolder }
       if (req.method === 'GET') {
         if (path === 'api/state') return json(res, state);
         if (path === 'api/defaults') return json(res, initial);
+        if (path === 'api/version') return json(res, { version });
         if (path === 'api/recent') return json(res, await recent.list());
         if (['', 'app.js', 'style.css'].includes(path)) {
           const file = path || 'index.html';

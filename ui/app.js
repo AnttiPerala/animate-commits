@@ -118,4 +118,9 @@ async function refresh() {
   }
 }
 async function poll() { try { await refresh(); } catch(e) { error('Connection to the capture engine was lost. '+e.message); } setTimeout(poll,700); }
-try { fill(await api('defaults')); showRecent(await api('recent')); await poll(); } catch(e) { error(e.message); }
+try {
+  const {version} = await api('version');
+  $('version').textContent = `v${version}`; $('version').hidden = false;
+  document.title = `Animate Commits v${version}`;
+  fill(await api('defaults')); showRecent(await api('recent')); await poll();
+} catch(e) { error(e.message); }

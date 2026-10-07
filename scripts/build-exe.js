@@ -6,12 +6,16 @@ import { gzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import { inject } from 'postject';
 import { run } from '../src/process.js';
+import { reserveBuildVersion } from './build-version.js';
 
 if (process.platform !== 'win32') throw new Error('Build the Windows executable on Windows using Node.js 22+');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const temp = await mkdtemp(join(tmpdir(), 'animate-commits-build-'));
-const dist = process.env.ANIMATE_BUILD_DIR ? resolve(process.env.ANIMATE_BUILD_DIR) : join(root, 'dist');
+const build = await reserveBuildVersion(root);
+const dist = process.env.ANIMATE_BUILD_DIR ? resolve(process.env.ANIMATE_BUILD_DIR) : join(root, 'dist', `v${build.version}`);
+let temp;
 try {
+  temp = await mkdtemp(join(tmpdir(), 'animate-commits-build-'));
+  console.log(`Building Animate Commits v${build.version}…`);
   const files = {};
   async function collect(relative) {
     const path = join(root, relative);
@@ -22,7 +26,7 @@ try {
     }
   }
   for (const directory of ['bin', 'src', 'helpers', 'ui', 'node_modules/playwright', 'node_modules/playwright-core']) await collect(directory);
-  files['package.json'] = Buffer.from(JSON.stringify({ type: 'module', name: 'animate-commits-runtime' })).toString('base64');
+  files['package.json'] = Buffer.from(JSON.stringify({ type: 'module', name: 'animate-commits-runtime', version: build.version })).toString('base64');
   const nodeLicense = await readFile(join(dirname(process.execPath), 'LICENSE'));
   files['NODE-LICENSE.txt'] = nodeLicense.toString('base64');
   const payload = join(temp, 'application.gz');
@@ -39,6 +43,8 @@ try {
   await inject(executable, 'NODE_SEA_BLOB', await readFile(blob), { sentinelFuse: 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2' });
   const help = await run(executable, ['--help'], { cwd: temp, timeout: 60000 });
   if (!help.includes('Git history')) throw new Error('Executable smoke test did not show expected help');
+  const version = await run(executable, ['--version'], { cwd: temp, timeout: 60000 });
+  if (version.trim() !== build.version) throw new Error('Executable version does not match the build');
   await mkdir(dist, { recursive: true });
   const target = join(dist, 'animate-commits.exe');
   await copyFile(executable, join(dist, 'animate-commits-cli.exe'));
@@ -57,5 +63,9 @@ try {
   const hash = createHash('sha256').update(guiBinary).digest('hex');
   const cliHash = createHash('sha256').update(await readFile(executable)).digest('hex');
   await writeFile(join(dist, 'SHA256SUMS.txt'), `${hash}  animate-commits.exe\n${cliHash}  animate-commits-cli.exe\n`);
+  await writeFile(join(dist, 'VERSION.txt'), build.version + '\n');
   console.log(`Built ${target}\nSHA256 ${hash}`);
-} finally { await rm(temp, { recursive: true, force: true, maxRetries: 3 }); }
+} finally {
+  try { if (temp) await rm(temp, { recursive: true, force: true, maxRetries: 3 }); }
+  finally { await build.release(); }
+}
